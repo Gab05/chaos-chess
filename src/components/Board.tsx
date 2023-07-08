@@ -4,14 +4,13 @@ import {
   getFiles,
   getRanks,
   incrementFile,
-  incrementRank,
   Square,
 } from "../models/square";
 import { Piece } from "../models/piece";
 import {
   findCheckmate,
   findChecks,
-  getPlayableSquares,
+  getPlayableSquaresFor,
 } from "../engine/Engine";
 import { getPieceSprite } from "../sprites/Pieces";
 import "../App.css";
@@ -21,31 +20,47 @@ const Board = (): JSX.Element => {
     let s: any = {};
     for (const rank of getRanks().reverse()) {
       for (const file of getFiles()) {
-        if (rank === 7)
+        if (rank === 7) {
+          // Black pawns
           s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "p"));
-        else if (rank === 8 && ["a", "h"].includes(file))
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "r"));
-        else if (rank === 8 && ["b", "g"].includes(file))
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "n"));
-        else if (rank === 8 && ["c", "f"].includes(file))
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "b"));
-        else if (rank === 8 && file === "d")
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "q"));
-        else if (rank === 8 && file === "e")
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "k"));
-        else if (rank === 2)
+        } else if (rank === 8) {
+          // Black minor and major pieces
+          if (["a", "h"].includes(file))
+            // Rooks
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "r"));
+          else if (["b", "g"].includes(file))
+            // Horseys
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "n"));
+          else if (["c", "f"].includes(file))
+            // Snipers
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "b"));
+          else if (file === "d")
+            // Queen
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "q"));
+          // King
+          else
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("b", "k"));
+        } else if (rank === 2) {
+          // White pawns
           s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "p"));
-        else if (rank === 1 && ["a", "h"].includes(file))
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "r"));
-        else if (rank === 1 && ["b", "g"].includes(file))
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "n"));
-        else if (rank === 1 && ["c", "f"].includes(file))
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "b"));
-        else if (rank === 1 && file === "d")
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "q"));
-        else if (rank === 1 && file === "e")
-          s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "k"));
-        else s[`${file}${rank}`] = new Square(file, rank);
+        } else if (rank === 1) {
+          // White minor and major pieces
+          if (["a", "h"].includes(file))
+            // Rooks
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "r"));
+          else if (["b", "g"].includes(file))
+            // Horseys
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "n"));
+          else if (["c", "f"].includes(file))
+            // Snipers
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "b"));
+          else if (file === "d")
+            // Queen
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "q"));
+          // King
+          else
+            s[`${file}${rank}`] = new Square(file, rank, new Piece("w", "k"));
+        } else s[`${file}${rank}`] = new Square(file, rank);
       }
     }
     return s;
@@ -53,16 +68,16 @@ const Board = (): JSX.Element => {
 
   const [squares, setSquares] = useState<{ [k: string]: Square }>(initBoard());
   const [whiteToPlay, setWhiteToPlay] = useState<boolean>(true);
-  const [playableSquares, setPlayableSquares] = useState<string[]>([]);
+  const [playableSquares, setPlayableSquares] = useState<
+    Record<string, Square[]>
+  >({});
   const [playSourceSquare, setPlaySourceSquare] = useState<Square>();
   const [playDestinationSquare, setPlayDestinationSquare] = useState<Square>();
 
   useEffect(() => {
-    if (playSourceSquare)
-      setPlayableSquares(
-        getPlayableSquares(playSourceSquare, squares).map((s) => s.name)
-      );
-  }, [playSourceSquare, squares]);
+    const s = getPlayableSquaresFor(whiteToPlay ? "w" : "b", squares);
+    setPlayableSquares(s);
+  }, [squares]);
 
   const isPlayerToPlay = (s?: Square): boolean => {
     if (!s) return false;
@@ -86,7 +101,7 @@ const Board = (): JSX.Element => {
       !source.piece ||
       !dest ||
       !isPlayerToPlay(source) ||
-      !playableSquares.includes(dest.name)
+      !playableSquares[source.name].includes(dest)
     ) {
       return;
     } else {
@@ -97,8 +112,9 @@ const Board = (): JSX.Element => {
   const play = (source: Square, dest: Square) => {
     if (!source.piece) return;
 
-    // Check if en passant was taken
+    // Check if en passant was taken, then remove taken pawn (not on dest square)
     if (source.piece.type === "p" && dest.allowsEnPassant) {
+      console.log("Taking en passant");
       squares[`${dest.file}${source.rank}`].piece = undefined;
     }
 
@@ -110,6 +126,11 @@ const Board = (): JSX.Element => {
       squares[
         `${source.file}${(source.rank + dest.rank) / 2}`
       ].allowsEnPassant = true;
+
+      console.log(
+        "En passant allowed on",
+        squares[`${source.file}${(source.rank + dest.rank) / 2}`].name
+      );
     }
 
     // Check for promotion
@@ -120,6 +141,7 @@ const Board = (): JSX.Element => {
       ) {
         source.piece.type = "q";
         source.piece.name = `${source.piece.color}q`;
+        console.log("Promoting");
       }
     }
 
@@ -129,21 +151,18 @@ const Board = (): JSX.Element => {
       incrementFile(source.file) !== dest.file &&
       decrementFile(source.file) !== dest.file
     ) {
-      if (dest.name === "c1") {
-        squares["d1"].piece = squares["a1"].piece;
-        squares["a1"].piece = undefined;
-      }
-      if (dest.name === "g1") {
-        squares["f1"].piece = squares["h1"].piece;
-        squares["h1"].piece = undefined;
-      }
-      if (dest.name === "c8") {
-        squares["d8"].piece = squares["a8"].piece;
-        squares["a8"].piece = undefined;
-      }
-      if (dest.name === "g8") {
-        squares["f8"].piece = squares["h8"].piece;
-        squares["h8"].piece = undefined;
+      console.log("castling");
+      const rank = source.rank;
+      if (dest.file === "c") {
+        const rook = { ...(squares[`a${rank}`].piece as Piece) };
+        rook.hasMoved = true;
+        squares[`d${rank}`].piece = rook;
+        squares[`a${rank}`].piece = undefined;
+      } else if (dest.file === "g") {
+        const rook = { ...(squares[`h${rank}`].piece as Piece) };
+        rook.hasMoved = true;
+        squares[`f${rank}`].piece = rook;
+        squares[`h${rank}`].piece = undefined;
       }
     }
 
@@ -166,11 +185,23 @@ const Board = (): JSX.Element => {
 
     // Update state
     setSquares({ ...squares });
-    setPlayableSquares([]);
     setPlaySourceSquare(undefined);
     setPlayDestinationSquare(undefined);
     setWhiteToPlay(!whiteToPlay);
   };
+
+  const getSquareBackgroundStyle = (s: Square) =>
+    `radial-gradient(${s.color === "b" ? "#525C75" : "#CEDEFF"}, ${
+      s.piece &&
+      (playableSquares[playSourceSquare?.name as string] || []).includes(s) &&
+      isPlayerToPlay(playSourceSquare)
+        ? "#4640FF"
+        : playSourceSquare?.name === s.name
+        ? "green"
+        : s.color === "b"
+        ? "#525C75"
+        : "#CEDEFF"
+    })`;
 
   return (
     <div style={{ width: "800px", display: "flex", flexWrap: "wrap" }}>
@@ -182,19 +213,7 @@ const Board = (): JSX.Element => {
               display: "flex",
               height: "100px",
               width: "100px",
-              background: `radial-gradient(${
-                s.color === "b" ? "#525C75" : "#CEDEFF"
-              }, ${
-                s.piece &&
-                playableSquares.find((square) => square === s.name) &&
-                isPlayerToPlay(playSourceSquare)
-                  ? "#4640FF"
-                  : playSourceSquare?.name === s.name
-                  ? "green"
-                  : s.color === "b"
-                  ? "#525C75"
-                  : "#CEDEFF"
-              })`,
+              background: getSquareBackgroundStyle(s),
               padding: "auto",
             }}
             onDragOver={(event) => event.preventDefault()}
@@ -228,7 +247,8 @@ const Board = (): JSX.Element => {
               />
             )}
             {playSourceSquare &&
-              playableSquares.includes(s.name) &&
+              playableSquares[playSourceSquare.name] &&
+              playableSquares[playSourceSquare.name].includes(s) &&
               isPlayerToPlay(playSourceSquare) &&
               !s.piece && (
                 <div

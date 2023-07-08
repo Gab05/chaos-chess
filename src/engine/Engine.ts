@@ -7,7 +7,7 @@ import {
   Rank,
   Square,
 } from "../models/square";
-import { Color } from "../models/basic";
+import { Color, otherColor } from "../models/basic";
 
 export const getPlayableSquares = (
   source: Square,
@@ -20,41 +20,32 @@ export const getPlayableSquares = (
   );
 };
 
-export const getAllReachableSquares = (
-  squares: { [name: string]: Square },
-  color: Color | undefined = undefined,
-  includeKing: boolean = true
-) => {
-  const reachableSquares: { [name: string]: Square } = {};
+export const getPlayableSquaresFor = (
+  color: Color,
+  squares: { [name: string]: Square }
+): Record<string, Square[]> => {
+  const playableSquares: Record<string, Square[]> = {};
+  const pieces: Record<Color, Square[]> = {
+    w: Object.values(squares).filter((s) => s.piece?.color === "w"),
+    b: Object.values(squares).filter((s) => s.piece?.color === "b"),
+  };
 
-  if (!color) {
-    // Get squares for both color pieces
-    for (const s of Object.values(squares).filter((s) => s.piece)) {
-      if (s.piece?.type === "k" && !includeKing) continue;
-      const pieceReachableSquares = getReachableSquares(s, squares);
-      pieceReachableSquares.forEach((s) => (reachableSquares[s.name] = s));
-    }
-  } else if (color === "w") {
-    // Get squares reachable by white pieces
-    for (const s of Object.values(squares).filter(
-      (s) => s.piece && s.piece.color === "w"
-    )) {
-      if (s.piece?.type === "k" && !includeKing) continue;
-      const pieceReachableSquares = getReachableSquares(s, squares);
-      pieceReachableSquares.forEach((s) => (reachableSquares[s.name] = s));
-    }
-  } else {
-    // Get squares reachable by black pieces
-    for (const s of Object.values(squares).filter(
-      (s) => s.piece && s.piece.color === "b"
-    )) {
-      if (s.piece?.type === "k" && !includeKing) continue;
-      const pieceReachableSquares = getReachableSquares(s, squares);
-      pieceReachableSquares.forEach((s) => (reachableSquares[s.name] = s));
+  // Register squares reachable by other, for castling purposes
+  const king = pieces[color].find((s) => s.piece?.type === "k")?.piece;
+  if (king && !king.hasMoved) {
+    for (const s of pieces[otherColor(color)]) {
+      const opponentSquares = getReachableSquares(s, squares);
+      opponentSquares.forEach((s) => (s.reachableBy[otherColor(color)] = true));
     }
   }
+  // Get playable squares for current player
+  for (const s of pieces[color]) {
+    const playable = getPlayableSquares(s, squares);
+    playable.forEach((s) => (s.playableBy[color] = true));
+    playableSquares[s.name] = playable;
+  }
 
-  return Object.values(reachableSquares);
+  return playableSquares;
 };
 
 export const getReachableSquares = (
@@ -92,61 +83,37 @@ const getPlayableSquaresForPawn = (
   squares: { [name: string]: Square }
 ): Square[] => {
   if (!source.piece) return [];
-
+  const color = source.piece.color;
   const playableSquares = [];
-  // White pawns go forward in ranks
-  if (source.piece?.color === "w") {
-    // Find first forward square
-    const singleMoveSquare =
-      squares[`${source.file}${incrementRank(source.rank)}`];
-    if (singleMoveSquare && !singleMoveSquare.piece)
-      playableSquares.push(singleMoveSquare);
 
-    // If pawn hasn't moved yet and singleMove is allowed, allow double square moves
-    if (!source.piece.hasMoved && singleMoveSquare && !singleMoveSquare.piece) {
+  // White pawns move by increasing ranks, black by decreasing
+  const rankMovement = color === "w" ? incrementRank : decrementRank;
+
+  // Find first movement square
+  const singleMoveSquare =
+    squares[`${source.file}${rankMovement(source.rank)}`];
+  if (singleMoveSquare && !singleMoveSquare.piece) {
+    playableSquares.push(singleMoveSquare);
+    // If pawn hasn't moved yet, allow double square moves
+    if (!source.piece.hasMoved) {
       const doubleMoveSquare =
         squares[
-          `${source.file}${incrementRank(incrementRank(source.rank) as Rank)}`
+          `${source.file}${rankMovement(rankMovement(source.rank) as Rank)}`
         ];
       if (doubleMoveSquare && !doubleMoveSquare.piece)
         playableSquares.push(doubleMoveSquare);
     }
-
-    // Find pieces on squares that can be taken diagonally
-    const capturableSquares = [
-      squares[`${incrementFile(source.file)}${incrementRank(source.rank)}`],
-      squares[`${decrementFile(source.file)}${incrementRank(source.rank)}`],
-    ].filter((s) => (s?.piece && s.piece?.color === "b") || s?.allowsEnPassant);
-    playableSquares.push(...capturableSquares);
   }
-  // Black pawn go backwards in ranks
-  else {
-    // Find first forward square
-    const singleMoveSquare =
-      squares[`${source.file}${decrementRank(source.rank)}`];
 
-    if (singleMoveSquare && !singleMoveSquare.piece)
-      playableSquares.push(singleMoveSquare);
-
-    // If pawn hasn't moved yet and singleMove is allowed, allow double square moves
-    if (!source.piece.hasMoved && singleMoveSquare && !singleMoveSquare.piece) {
-      const doubleMoveSquare =
-        squares[
-          `${source.file}${decrementRank(decrementRank(source.rank) as Rank)}`
-        ];
-      if (doubleMoveSquare && !doubleMoveSquare.piece)
-        playableSquares.push(doubleMoveSquare);
-    }
-
-    // Find pieces on squares that can be taken diagonally
-    const capturableSquares = [
-      squares[`${incrementFile(source.file)}${decrementRank(source.rank)}`],
-      squares[`${decrementFile(source.file)}${decrementRank(source.rank)}`],
-    ].filter(
-      (s) => (s?.piece && s?.piece?.color === "w") || s?.allowsEnPassant
-    );
-    playableSquares.push(...capturableSquares);
-  }
+  // Find pieces on squares that can be taken diagonally
+  const capturableSquares = [
+    squares[`${incrementFile(source.file)}${rankMovement(source.rank)}`],
+    squares[`${decrementFile(source.file)}${rankMovement(source.rank)}`],
+  ].filter(
+    (s) =>
+      (s?.piece && s.piece?.color === otherColor(color)) || s?.allowsEnPassant
+  );
+  playableSquares.push(...capturableSquares);
 
   return playableSquares;
 };
@@ -282,57 +249,40 @@ const findCastleSquares = (
   king: Square,
   squares: { [name: string]: Square }
 ): Square[] => {
-  const { b1, c1, d1, f1, g1, b8, c8, d8, f8, g8 } = squares;
   const castleSquares: Square[] = [];
   if (!king.piece || king.piece?.hasMoved || king.piece?.inCheck)
     return castleSquares;
 
-  if (king.piece.color === "w") {
-    const aRook = squares["a1"].piece;
-    const hRook = squares["h1"].piece;
-    if (aRook && !aRook.hasMoved && !b1.piece && !c1.piece && !d1.piece) {
-      const opponentSquares = getAllReachableSquares(squares, "b", false);
-      if (
-        !opponentSquares.find((s) =>
-          [b1, c1, d1].map((sq) => sq.name).includes(s.name)
-        )
-      ) {
-        castleSquares.push(c1);
-      }
-    }
-    if (hRook && !hRook.hasMoved && !f1.piece && !g1.piece) {
-      const opponentSquares = getAllReachableSquares(squares, "b", false);
-      if (
-        !opponentSquares.find((s) =>
-          [f1, g1].map((sq) => sq.name).includes(s.name)
-        )
-      ) {
-        castleSquares.push(g1);
-      }
-    }
-  } else {
-    const aRook = squares["a8"].piece;
-    const hRook = squares["h8"].piece;
-    if (aRook && !aRook.hasMoved && !b8.piece && !c8.piece && !d8.piece) {
-      const opponentSquares = getAllReachableSquares(squares, "w", false);
-      if (
-        !opponentSquares.find((s) =>
-          [b8, c8, d8].map((sq) => sq.name).includes(s.name)
-        )
-      ) {
-        castleSquares.push(c8);
-      }
-    }
-    if (hRook && !hRook.hasMoved && !f8.piece && !g8.piece) {
-      const opponentSquares = getAllReachableSquares(squares, "w", false);
-      if (
-        !opponentSquares.find((s) =>
-          [f8, g8].map((sq) => sq.name).includes(s.name)
-        )
-      ) {
-        castleSquares.push(g8);
-      }
-    }
+  const color: Color = king.piece.color;
+  const other: Color = otherColor(color);
+  const rank: Rank = color === "w" ? 1 : 8;
+
+  const aRook = squares[`a${rank}`].piece;
+  const hRook = squares[`h${rank}`].piece;
+
+  // Queen side castling
+  if (
+    aRook &&
+    !aRook.hasMoved &&
+    !squares[`b${rank}`].piece &&
+    !squares[`c${rank}`].piece &&
+    !squares[`d${rank}`].piece &&
+    !squares[`c${rank}`].reachableBy[other] &&
+    !squares[`d${rank}`].reachableBy[other]
+  ) {
+    castleSquares.push(squares[`c${rank}`]);
+  }
+
+  // King side castling
+  if (
+    hRook &&
+    !hRook.hasMoved &&
+    !squares[`f${rank}`].piece &&
+    !squares[`g${rank}`].piece &&
+    !squares[`f${rank}`].reachableBy[other] &&
+    !squares[`g${rank}`].reachableBy[other]
+  ) {
+    castleSquares.push(squares[`g${rank}`]);
   }
   return castleSquares;
 };
@@ -355,6 +305,7 @@ export const findChecks = (squares: { [name: string]: Square }): Square[] => {
   return checks;
 };
 
+// Expects a king in check as first argument
 export const findCheckmate = (
   king: Square,
   squares: { [name: string]: Square }

@@ -34,6 +34,8 @@ export class Square {
   public color: Color;
   public piece?: Piece;
   public allowsEnPassant: boolean;
+  public reachableBy: Record<Color, boolean>;
+  public playableBy: Record<Color, boolean>;
 
   constructor(file: File, rank: Rank, piece?: Piece) {
     this.file = file;
@@ -42,5 +44,7 @@ export class Square {
     this.color = computeSquareColor(file, rank);
     this.piece = piece;
     this.allowsEnPassant = false;
+    this.reachableBy = { b: false, w: false };
+    this.playableBy = { b: false, w: false };
   }
 }
