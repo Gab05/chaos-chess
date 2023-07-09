@@ -2,11 +2,13 @@ import { Color } from "./basic";
 
 export type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 
+export const getPieceTypes = (): PieceType[] => ["p", "n", "b", "r", "q", "k"];
+
 export const getPieceFullName = (type: PieceType): string =>
   ({
     p: "Pawn",
-    b: "Bishop",
     n: "Knight",
+    b: "Bishop",
     r: "Rook",
     q: "Queen",
     k: "King",

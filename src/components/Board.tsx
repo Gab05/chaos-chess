@@ -6,7 +6,7 @@ import {
   incrementFile,
   Square,
 } from "../models/square";
-import { Piece } from "../models/piece";
+import { Piece, PieceType, getPieceTypes } from "../models/piece";
 import {
   findCheckmate,
   findChecks,
@@ -167,6 +167,10 @@ const Board = (): JSX.Element => {
       }
     }
 
+    // Reset reachable squares
+    Object.values(squares).forEach(s =>
+      s.reachableBy = { "b": false, "w": false })
+
     // Move main piece
     if (squares[dest.name].piece) {
       const captured = [...capturedPieces, squares[dest.name].piece as Piece];
@@ -198,6 +202,8 @@ const Board = (): JSX.Element => {
 
   const CapturedPieces = (props: { pieces: Piece[] }) => {
     console.log("CapturedPieces component props", props.pieces);
+    const pieceTypes: PieceType[] = getPieceTypes();
+
     return (
       <div
         style={{
@@ -208,39 +214,42 @@ const Board = (): JSX.Element => {
           justifyContent: "flex-end",
         }}
       >
-        {props.pieces
-          .filter((p) => p.type === "p")
-          .map((p, index) => {
-            const style: React.CSSProperties = {
-              height: "64px",
-              width: "64px",
-              position: "relative",
-            };
-            if (index) style["right"] = `${32 * index}px`;
+        {pieceTypes.map(type => {
+          const piece = props.pieces.find(p => p.type === type);
+          if (piece) {
             return (
-              <img
-                key={`${p.name}${index}`}
-                alt={p.name}
-                src={getPieceSprite(p.name)}
-                style={style}
-              />
-            );
-          })}
+              <div>
+                <img
+                  alt={piece.name}
+                  src={getPieceSprite(piece.name)}
+                  style={{
+                    height: "64px",
+                    width: "64px",
+                    position: "relative",
+                  }}
+                />
+                <span>
+                  {props.pieces.filter(p => p.type === type).length}
+                </span>
+              </div>
+
+            )
+          } else return null;
+        })}
       </div>
     );
   };
 
   const getSquareBackgroundStyle = (s: Square) =>
-    `radial-gradient(${s.color === "b" ? "#525C75" : "#CEDEFF"}, ${
-      s.piece &&
+    `radial-gradient(${s.color === "b" ? "#525C75" : "#CEDEFF"}, ${s.piece &&
       (playableSquares[playSourceSquare?.name as string] || []).includes(s) &&
       isPlayerToPlay(playSourceSquare)
-        ? "#4640FF"
-        : playSourceSquare?.name === s.name
+      ? "#4640FF"
+      : playSourceSquare?.name === s.name
         ? "green"
         : s.color === "b"
-        ? "#525C75"
-        : "#CEDEFF"
+          ? "#525C75"
+          : "#CEDEFF"
     })`;
 
   return (
