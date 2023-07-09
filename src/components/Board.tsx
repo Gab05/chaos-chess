@@ -1,4 +1,4 @@
-import { JSX, useEffect, useState } from "react";
+import React, { JSX, useEffect, useState } from "react";
 import {
   decrementFile,
   getFiles,
@@ -73,11 +73,12 @@ const Board = (): JSX.Element => {
   >({});
   const [playSourceSquare, setPlaySourceSquare] = useState<Square>();
   const [playDestinationSquare, setPlayDestinationSquare] = useState<Square>();
+  const [capturedPieces, setCapturedPieces] = useState<Piece[]>([]);
 
   useEffect(() => {
     const s = getPlayableSquaresFor(whiteToPlay ? "w" : "b", squares);
     setPlayableSquares(s);
-  }, [squares]);
+  }, [squares, whiteToPlay]);
 
   const isPlayerToPlay = (s?: Square): boolean => {
     if (!s) return false;
@@ -167,6 +168,11 @@ const Board = (): JSX.Element => {
     }
 
     // Move main piece
+    if (squares[dest.name].piece) {
+      const captured = [...capturedPieces, squares[dest.name].piece as Piece];
+      console.log("Captured", captured);
+      setCapturedPieces(captured);
+    }
     squares[dest.name].piece = { ...source.piece, hasMoved: true };
     squares[source.name].piece = undefined;
 
@@ -190,6 +196,40 @@ const Board = (): JSX.Element => {
     setWhiteToPlay(!whiteToPlay);
   };
 
+  const CapturedPieces = (props: { pieces: Piece[] }) => {
+    console.log("CapturedPieces component props", props.pieces);
+    return (
+      <div
+        style={{
+          height: "64px",
+          width: "100%",
+          display: "flex",
+          flexDirection: "row",
+          justifyContent: "flex-end",
+        }}
+      >
+        {props.pieces
+          .filter((p) => p.type === "p")
+          .map((p, index) => {
+            const style: React.CSSProperties = {
+              height: "64px",
+              width: "64px",
+              position: "relative",
+            };
+            if (index) style["right"] = `${32 * index}px`;
+            return (
+              <img
+                key={`${p.name}${index}`}
+                alt={p.name}
+                src={getPieceSprite(p.name)}
+                style={style}
+              />
+            );
+          })}
+      </div>
+    );
+  };
+
   const getSquareBackgroundStyle = (s: Square) =>
     `radial-gradient(${s.color === "b" ? "#525C75" : "#CEDEFF"}, ${
       s.piece &&
@@ -204,15 +244,16 @@ const Board = (): JSX.Element => {
     })`;
 
   return (
-    <div style={{ width: "800px", display: "flex", flexWrap: "wrap" }}>
+    <div style={{ width: "676px", display: "flex", flexWrap: "wrap" }}>
+      <CapturedPieces pieces={capturedPieces.filter((p) => p.color === "w")} />
       {Object.values(squares).map((s) => {
         return (
           <div
             key={s.piece ? s.name + "-" + s.piece.name : s.name}
             style={{
               display: "flex",
-              height: "100px",
-              width: "100px",
+              height: "84px",
+              width: "84px",
               background: getSquareBackgroundStyle(s),
               padding: "auto",
             }}
@@ -265,6 +306,7 @@ const Board = (): JSX.Element => {
           </div>
         );
       })}
+      <CapturedPieces pieces={capturedPieces.filter((p) => p.color === "b")} />
     </div>
   );
 };

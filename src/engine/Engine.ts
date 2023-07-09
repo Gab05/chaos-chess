@@ -204,10 +204,10 @@ const getPlayableSquaresOnLines = (
   squares: { [name: string]: Square }
 ): Square[] => {
   return [
-    ...loopOnPlayableSquares(s, squares, incrementFile, (rank) => rank),
-    ...loopOnPlayableSquares(s, squares, decrementFile, (rank) => rank),
-    ...loopOnPlayableSquares(s, squares, (file) => file, incrementRank),
-    ...loopOnPlayableSquares(s, squares, (file) => file, decrementRank),
+    ...loopOnPlayableSquares(s, squares, incrementFile, (r) => r),
+    ...loopOnPlayableSquares(s, squares, decrementFile, (r) => r),
+    ...loopOnPlayableSquares(s, squares, (f) => f, incrementRank),
+    ...loopOnPlayableSquares(s, squares, (f) => f, decrementRank),
   ].filter((s) => !!s);
 };
 
